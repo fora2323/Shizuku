@@ -4,6 +4,7 @@ on:
   push:
     paths-ignore:
       - '.github/ISSUE_TEMPLATE'
+  workflow_dispatch: # Tambahan agar Anda bisa memicu build secara manual dari tab Actions
 
 jobs:
   build:
@@ -15,19 +16,15 @@ jobs:
         with:
           submodules: 'recursive'
           fetch-depth: 0
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
-      - name: Write key
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-        run: |
-          echo KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} > signing.properties
-          echo KEYSTORE_ALIAS=${{ secrets.KEYSTORE_ALIAS }} >> signing.properties
-          echo KEYSTORE_ALIAS_PASSWORD='${{ secrets.KEYSTORE_ALIAS_PASSWORD }}' >> signing.properties
-          echo KEYSTORE_FILE=../key.jks >> signing.properties
-          echo ${{ secrets.KEYSTORE }} | base64 --decode > key.jks
+
+      # LANGKAH "Write key" DIHAPUS TOTAL DARI SINI
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -35,6 +32,7 @@ jobs:
           build-scan-publish: true
           build-scan-terms-of-use-url: "https://gradle.com/terms-of-service"
           build-scan-terms-of-use-agree: "yes"
+
       - name: Build with Gradle
         id: buildWithGradle
         run: |
@@ -43,12 +41,15 @@ jobs:
           echo 'android.native.buildOutput=verbose' >> gradle.properties
           echo 'org.gradle.caching=true' >> gradle.properties
           echo 'org.gradle.parallel=true' >> gradle.properties
-          ./gradlew :manager:assemble
-          releaseName=`ls manager/build/outputs/apk/release/shizuku*-v*-release.apk | awk -F '(/|-release.apk)' '{print $6}'` && echo "releaseName=$releaseName" >> $GITHUB_OUTPUT
-      - name: Upload release
+          
+          # Perintah diubah menjadi assembleDebug agar tidak butuh Keystore
+          ./gradlew :manager:assembleDebug
+
+      - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.buildWithGradle.outputs.releaseName }}
-          path: "manager/build/outputs"
+          name: shizuku-debug-apk
+          # Path disesuaikan untuk mengambil file Debug APK
+          path: "manager/build/outputs/apk/debug/*.apk"
           compression-level: 9
