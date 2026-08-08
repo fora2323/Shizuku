@@ -44,7 +44,7 @@ static int registerNativeMethods(JNIEnv *env, const char *className,
 }
 
 static int registerNatives(JNIEnv *env) {
-    if (!registerNativeMethods(env, "moe/shizuku/server/utils/NativeHelper", gMethods,
+    if (!registerNativeMethods(env, "com/aurora/manager/server/utils/NativeHelper", gMethods,
                                sizeof(gMethods) / sizeof(gMethods[0])))
         return JNI_FALSE;
 
