@@ -1,0 +1,61 @@
+name: App (Debug APK + Release Native)
+
+on:
+  push:
+    paths-ignore:
+      - '.github/ISSUE_TEMPLATE'
+  workflow_dispatch: # Memungkinkan Anda menekan tombol run secara manual
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # LANGKAH 'Write key' DIHAPUS TOTAL KARENA KITA MEMBUAT DEBUG APK (TIDAK BUTUH KEYSTORE)
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          build-scan-publish: true
+          build-scan-terms-of-use-url: "https://gradle.com/terms-of-service"
+          build-scan-terms-of-use-agree: "yes"
+
+      - name: Build with Gradle
+        id: buildWithGradle
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
+          echo 'android.sdk.channel=3' >> gradle.properties
+          echo 'android.native.buildOutput=verbose' >> gradle.properties
+          echo 'org.gradle.caching=true' >> gradle.properties
+          echo 'org.gradle.parallel=true' >> gradle.properties
+          
+          # 1. KITA PAKSA CMAKE SELALU BUILD NATIVE DALAM MODE RELEASE
+          # Meskipun APK yang dibuild adalah Debug, argumen ini memaksa NDK mengompilasi C++ dengan optimasi Release (-O3 / -Os)
+          echo 'android.cmake.buildType=release' >> gradle.properties
+
+          # 2. PERINTAH DIUBAH MENJADI assembleDebug (Tidak butuh keystore, langsung jadi APK Debug)
+          ./gradlew :manager:assembleDebug
+
+          # Mengambil nama file output untuk artefak
+          releaseName=`ls manager/build/outputs/apk/debug/shizuku*-v*-debug.apk | awk -F '(/|-debug.apk)' '{print $6}'` && echo "releaseName=$releaseName" >> $GITHUB_OUTPUT
+
+      - name: Upload Debug APK with Release Native
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shizuku-debug-with-optimized-native
+          # Mengambil folder hasil build debug
+          path: "manager/build/outputs/apk/debug/*.apk"
+          compression-level: 9
