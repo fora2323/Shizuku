@@ -1,4 +1,4 @@
-name: App (Debug APK + Release Native)
+name: App (Unsigned Release APK)
 
 on:
   push:
@@ -23,8 +23,6 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      # LANGKAH 'Write key' DIHAPUS TOTAL KARENA KITA MEMBUAT DEBUG APK (TIDAK BUTUH KEYSTORE)
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -41,21 +39,16 @@ jobs:
           echo 'org.gradle.caching=true' >> gradle.properties
           echo 'org.gradle.parallel=true' >> gradle.properties
           
-          # 1. KITA PAKSA CMAKE SELALU BUILD NATIVE DALAM MODE RELEASE
-          # Meskipun APK yang dibuild adalah Debug, argumen ini memaksa NDK mengompilasi C++ dengan optimasi Release (-O3 / -Os)
-          echo 'android.cmake.buildType=release' >> gradle.properties
+          # PERINTAH DIUBAH MENJADI assembleRelease
+          # Karena tidak ada konfigurasi keystore, ini akan mengompilasi mode Release (termasuk optimasi C++) 
+          # dan menghasilkan APK berstatus "unsigned".
+          ./gradlew :manager:assembleRelease
 
-          # 2. PERINTAH DIUBAH MENJADI assembleDebug (Tidak butuh keystore, langsung jadi APK Debug)
-          ./gradlew :manager:assembleDebug
-
-          # Mengambil nama file output untuk artefak
-          releaseName=`ls manager/build/outputs/apk/debug/shizuku*-v*-debug.apk | awk -F '(/|-debug.apk)' '{print $6}'` && echo "releaseName=$releaseName" >> $GITHUB_OUTPUT
-
-      - name: Upload Debug APK with Release Native
+      - name: Upload Unsigned Release APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: shizuku-debug-with-optimized-native
-          # Mengambil folder hasil build debug
-          path: "manager/build/outputs/apk/debug/*.apk"
+          name: shizuku-release-unsigned
+          # Mengambil folder hasil build release
+          path: "manager/build/outputs/apk/release/*.apk"
           compression-level: 9
