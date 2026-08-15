@@ -28,25 +28,31 @@ jobs:
         with:
           dependency-graph: generate-and-submit
 
-      - name: Build with Gradle (Resolve Dependencies automatically)
+      - name: Build C++ Native Libs (Release Mode)
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
           echo 'android.sdk.channel=3' >> gradle.properties
           
-          # Kita biarkan Gradle mem-build mode Debug agar semua library C++ ikut terkompilasi
-          ./gradlew :manager:assembleDebug
+          # Memicu kompilasi C++ mode Release tanpa validasi APK Keystore
+          ./gradlew externalNativeBuildRelease
 
       - name: Extract Native Binaries (C++)
         run: |
-          # Buat folder khusus untuk menyimpan hasil C++
           mkdir -p native_output
           
-          # Mencari semua file biner (.so dan executable) dari hasil kompilasi Gradle
-          # File output CMake biasanya tersimpan di folder intermediates
-          find manager/build/intermediates -name "*.so" -exec cp {} native_output/ \;
-          
-          # Jika file "starter" adalah executable, biasanya juga ada di sini atau di assets
-          find manager/build/intermediates -type f -name "starter" -exec cp {} native_output/ \;
+          # Cari semua .so, starter, dan rish di seluruh sub-folder build
+          # dan kelompokkan secara otomatis berdasarkan arsitekturnya (arm64-v8a, armeabi-v7a, dll)
+          find . -type f \( -name "*.so" -o -name "starter" -o -name "rish" -o -name "shizuku_starter" \) -path "*/build/intermediates/*" | while read -r file; do
+            abi=$(echo "$file" | grep -oE '(arm64-v8a|armeabi-v7a|x86_64|x86)' | head -n 1)
+            filename=$(basename "$file")
+            
+            if [ -n "$abi" ]; then
+              mkdir -p "native_output/$abi"
+              cp "$file" "native_output/$abi/$filename"
+            else
+              cp "$file" "native_output/$filename"
+            fi
+          done
 
       - name: Upload Native C++ Only
         if: success()
